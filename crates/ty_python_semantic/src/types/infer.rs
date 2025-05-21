@@ -1872,7 +1872,7 @@ impl<'db> TypeInferenceBuilder<'db> {
             ast::Stmt::FunctionDef(function) => self.infer_function_definition_statement(function),
             ast::Stmt::ClassDef(class) => self.infer_class_definition_statement(class),
             ast::Stmt::Expr(ast::StmtExpr { range: _, value }) => {
-                self.infer_expression(value);
+                self.infer_standalone_expression(value);
             }
             ast::Stmt::If(if_statement) => self.infer_if_statement(if_statement),
             ast::Stmt::Try(try_statement) => self.infer_try_statement(try_statement),

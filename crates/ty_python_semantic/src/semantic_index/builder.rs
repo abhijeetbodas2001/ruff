@@ -1947,11 +1947,23 @@ where
                 }
                 walk_stmt(self, stmt);
             }
-            ast::Stmt::Expr(ast::StmtExpr { value, range: _ }) if self.in_module_scope() => {
-                if let Some(expr) = dunder_all_extend_argument(value) {
-                    self.add_standalone_expression(expr);
+            ast::Stmt::Expr(ast::StmtExpr { value, range: _ }) => {
+                if self.in_module_scope() {
+                    if let Some(expr) = dunder_all_extend_argument(value) {
+                        self.add_standalone_expression(expr);
+                    }
                 }
+
+                let expression = self.add_standalone_expression(value);
                 self.visit_expr(value);
+
+                let predicate = Predicate {
+                    node: PredicateNode::TypeNever(expression),
+                    is_positive: false,
+                };
+
+                self.record_reachability_constraint(predicate);
+                self.record_visibility_constraint(predicate);
             }
             _ => {
                 walk_stmt(self, stmt);

@@ -652,6 +652,14 @@ impl VisibilityConstraints {
                 let ty = infer_expression_type(db, test_expr);
                 ty.bool(db).negate_if(!predicate.is_positive)
             }
+            PredicateNode::TypeNever(test_expr) => {
+                let ty = infer_expression_type(db, test_expr);
+                match ty.is_equivalent_to(db, Type::Never) {
+                    false => Truthiness::AlwaysFalse,
+                    true => Truthiness::AlwaysTrue,
+                }
+                .negate_if(!predicate.is_positive)
+            }
             PredicateNode::Pattern(inner) => Self::analyze_single_pattern_predicate(db, inner),
             PredicateNode::StarImportPlaceholder(star_import) => {
                 let symbol_table = symbol_table(db, star_import.scope(db));

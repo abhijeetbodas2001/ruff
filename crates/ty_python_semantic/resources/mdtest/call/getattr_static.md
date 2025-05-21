@@ -43,14 +43,6 @@ reveal_type(inspect.getattr_static(C, "normal", "default-arg"))  # revealed: int
 reveal_type(inspect.getattr_static(C, "non_existent", "default-arg"))  # revealed: Literal["default-arg"]
 ```
 
-When a non-existent attribute is accessed without a default value, the runtime raises an
-`AttributeError`. We could emit a diagnostic for this case, but that is currently not supported:
-
-```py
-# TODO: we could emit a diagnostic here
-reveal_type(inspect.getattr_static(C, "non_existent"))  # revealed: Never
-```
-
 We can access attributes on objects of all kinds:
 
 ```py
@@ -88,6 +80,26 @@ Metaclass attributes can not be added when probing an instance of the class:
 
 ```py
 reveal_type(inspect.getattr_static(E(), "attr", "non_existent"))  # revealed: Literal["non_existent"]
+```
+
+## Non-existent attribute
+
+When a non-existent attribute is accessed without a default value, the runtime raises an
+`AttributeError`. We could emit a diagnostic for this case, but that is currently not supported:
+
+```py
+import inspect
+
+class Descriptor:
+    def __get__(self, instance, owner) -> str:
+        return "a"
+
+class C:
+    normal: int = 1
+    descriptor: Descriptor = Descriptor()
+
+# TODO: we could emit a diagnostic here
+reveal_type(inspect.getattr_static(C, "non_existent"))  # revealed: Never
 ```
 
 ## Error cases
