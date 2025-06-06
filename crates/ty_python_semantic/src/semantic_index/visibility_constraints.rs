@@ -655,24 +655,25 @@ impl VisibilityConstraints {
             PredicateNode::ReturnsNever(test_expr) => {
                 let ty = infer_expression_type(db, test_expr);
                 if let Type::FunctionLiteral(function_literal) = ty {
-                    let returns_never = if function_literal
-                        .signature(db)
-                        .overloads
-                        .overloads
-                        .iter()
-                        .all(|overload| {
-                            // HACK: for now, require that *all* overloads are annotated with
-                            // returning `Never`
-                            // Ideally, if only some overloads return `Never`, we should consider
-                            // the types of the arguments.
-                            overload.return_ty.is_some_and(|return_type| {
-                                return_type.is_equivalent_to(db, Type::Never)
+                    let returns_never =
+                        if function_literal
+                            .signature(db)
+                            .overloads
+                            .iter()
+                            .all(|overload| {
+                                // HACK: for now, require that *all* overloads are annotated with
+                                // returning `Never`
+                                // Ideally, if only some overloads return `Never`, we should consider
+                                // the types of the arguments.
+                                overload.return_ty.is_some_and(|return_type| {
+                                    return_type.is_equivalent_to(db, Type::Never)
+                                })
                             })
-                        }) {
-                        Truthiness::AlwaysTrue
-                    } else {
-                        Truthiness::AlwaysFalse
-                    };
+                        {
+                            Truthiness::AlwaysTrue
+                        } else {
+                            Truthiness::AlwaysFalse
+                        };
                     returns_never.negate_if(!predicate.is_positive)
                 } else {
                     // Should I add a panic here?
