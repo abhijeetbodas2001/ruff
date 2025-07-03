@@ -137,6 +137,7 @@ impl<'db> ClassBase<'db> {
             | Type::WrapperDescriptor(_)
             | Type::DataclassDecorator(_)
             | Type::DataclassTransformer(_)
+            | Type::DataclassField(_)
             | Type::BytesLiteral(_)
             | Type::IntLiteral(_)
             | Type::StringLiteral(_)

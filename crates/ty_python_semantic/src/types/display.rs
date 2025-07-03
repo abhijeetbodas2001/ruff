@@ -180,6 +180,7 @@ impl Display for DisplayRepresentation<'_> {
             Type::DataclassTransformer(_) => {
                 f.write_str("<decorator produced by typing.dataclass_transform>")
             }
+            Type::DataclassField(_) => f.write_str("dataclass field object"),
             Type::Union(union) => union.display(self.db).fmt(f),
             Type::Intersection(intersection) => intersection.display(self.db).fmt(f),
             Type::IntLiteral(n) => n.fmt(f),

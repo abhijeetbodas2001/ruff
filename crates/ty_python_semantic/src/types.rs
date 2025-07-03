@@ -475,6 +475,13 @@ impl From<DataclassTransformerParams> for DataclassParams {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DataclassField {
+    kw_only: bool,
+}
+
+impl get_size2::GetSize for DataclassField {}
+
 /// Representation of a type: a set of possible values at runtime.
 ///
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, salsa::Update, get_size2::GetSize)]
@@ -519,6 +526,8 @@ pub enum Type<'db> {
     DataclassDecorator(DataclassParams),
     /// A special callable that is returned by a `dataclass_transform(…)` call.
     DataclassTransformer(DataclassTransformerParams),
+    /// A dataclass field (the same for stdlib, and third party)
+    DataclassField(DataclassField),
     /// The type of an arbitrary callable object with a certain specified signature.
     Callable(CallableType<'db>),
     /// A specific module object
@@ -687,6 +696,7 @@ impl<'db> Type<'db> {
             | Type::MethodWrapper(_)
             | Type::DataclassDecorator(_)
             | Type::DataclassTransformer(_)
+            | Type::DataclassField(_)
             | Type::ModuleLiteral(_)
             | Type::IntLiteral(_)
             | Type::BooleanLiteral(_)
@@ -778,7 +788,8 @@ impl<'db> Type<'db> {
             | Self::WrapperDescriptor(_)
             | Self::MethodWrapper(_)
             | Self::DataclassDecorator(_)
-            | Self::DataclassTransformer(_) => false,
+            | Self::DataclassTransformer(_)
+            | Type::DataclassField(_) => false,
 
             Self::GenericAlias(generic) => generic
                 .specialization(db)
@@ -1136,6 +1147,7 @@ impl<'db> Type<'db> {
             | Type::WrapperDescriptor(_)
             | Type::DataclassDecorator(_)
             | Type::DataclassTransformer(_)
+            | Type::DataclassField(_)
             | Type::ModuleLiteral(_)
             | Type::ClassLiteral(_)
             | Type::SpecialForm(_)
@@ -1160,6 +1172,7 @@ impl<'db> Type<'db> {
             | Type::MethodWrapper(_)
             | Type::DataclassDecorator(_)
             | Type::DataclassTransformer(_)
+            | Type::DataclassField(_)
             | Type::ModuleLiteral(..)
             | Type::IntLiteral(_)
             | Type::BooleanLiteral(_)
@@ -1837,6 +1850,7 @@ impl<'db> Type<'db> {
                 | Type::WrapperDescriptor(..)
                 | Type::DataclassDecorator(..)
                 | Type::DataclassTransformer(..)
+                | Type::DataclassField(..)
                 | Type::IntLiteral(..)
                 | Type::StringLiteral(..)
                 | Type::LiteralString,
@@ -1853,6 +1867,7 @@ impl<'db> Type<'db> {
                 | Type::WrapperDescriptor(..)
                 | Type::DataclassDecorator(..)
                 | Type::DataclassTransformer(..)
+                | Type::DataclassField(..)
                 | Type::IntLiteral(..)
                 | Type::StringLiteral(..)
                 | Type::LiteralString,
@@ -2387,7 +2402,8 @@ impl<'db> Type<'db> {
             | Type::Callable(_)
             | Type::PropertyInstance(_)
             | Type::DataclassDecorator(_)
-            | Type::DataclassTransformer(_) => false,
+            | Type::DataclassTransformer(_)
+            | Type::DataclassField(_) => false,
         }
     }
 
@@ -2491,6 +2507,7 @@ impl<'db> Type<'db> {
             | Type::MethodWrapper(_)
             | Type::DataclassDecorator(_)
             | Type::DataclassTransformer(_)
+            | Type::DataclassField(_)
             | Type::ModuleLiteral(_)
             | Type::SpecialForm(_)
             | Type::KnownInstance(_)
