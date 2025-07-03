@@ -572,6 +572,7 @@ impl ReachabilityConstraints {
         db: &'db dyn Db,
         predicates: &Predicates<'db>,
         mut id: ScopedReachabilityConstraintId,
+        ignore_never_constraints: bool,
     ) -> Truthiness {
         loop {
             let node = match id {
@@ -581,7 +582,7 @@ impl ReachabilityConstraints {
                 _ => self.interiors[id],
             };
             let predicate = &predicates[node.atom];
-            match Self::analyze_single(db, predicate) {
+            match Self::analyze_single(db, predicate, ignore_never_constraints) {
                 Truthiness::AlwaysTrue => id = node.if_true,
                 Truthiness::Ambiguous => id = node.if_ambiguous,
                 Truthiness::AlwaysFalse => id = node.if_false,
@@ -678,13 +679,21 @@ impl ReachabilityConstraints {
         }
     }
 
-    fn analyze_single(db: &dyn Db, predicate: &Predicate) -> Truthiness {
+    fn analyze_single(
+        db: &dyn Db,
+        predicate: &Predicate,
+        ignore_never_constraints: bool,
+    ) -> Truthiness {
         match predicate.node {
             PredicateNode::Expression(test_expr) => {
                 let ty = infer_expression_type(db, test_expr);
                 ty.bool(db).negate_if(!predicate.is_positive)
             }
             PredicateNode::ReturnsNever(test_expr) => {
+                if ignore_never_constraints {
+                    return Truthiness::AlwaysFalse.negate_if(!predicate.is_positive);
+                }
+
                 let ty = infer_expression_type(db, test_expr);
                 if let Type::FunctionLiteral(function_literal) = ty {
                     let returns_never =

@@ -390,7 +390,7 @@ impl<'db> UseDefMap<'db> {
         reachability: ScopedReachabilityConstraintId,
     ) -> bool {
         self.reachability_constraints
-            .evaluate(db, &self.predicates, reachability)
+            .evaluate(db, &self.predicates, reachability, false)
             .may_be_true()
     }
 
@@ -409,6 +409,7 @@ impl<'db> UseDefMap<'db> {
                     .node_reachability
                     .get(&node_key)
                     .expect("`is_node_reachable` should only be called on AST nodes with recorded reachability"),
+                false
             )
             .may_be_true()
     }
@@ -505,7 +506,7 @@ impl<'db> UseDefMap<'db> {
     pub(crate) fn can_implicitly_return_none(&self, db: &dyn crate::Db) -> bool {
         !self
             .reachability_constraints
-            .evaluate(db, &self.predicates, self.end_of_scope_reachability)
+            .evaluate(db, &self.predicates, self.end_of_scope_reachability, false)
             .is_always_false()
     }
 
@@ -518,6 +519,7 @@ impl<'db> UseDefMap<'db> {
             db,
             &self.predicates,
             binding.reachability_constraint,
+            false,
         )
     }
 

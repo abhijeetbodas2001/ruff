@@ -5539,6 +5539,7 @@ impl<'db, 'ast> TypeInferenceBuilder<'db, 'ast> {
                             db,
                             predicates,
                             binding.reachability_constraint,
+                            false,
                         );
                         if static_reachability.is_always_false() {
                             continue;

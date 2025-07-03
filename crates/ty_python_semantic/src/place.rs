@@ -206,6 +206,7 @@ pub(crate) fn symbol<'db>(
         name,
         RequiresExplicitReExport::No,
         considered_definitions,
+        false,
     )
 }
 
@@ -242,6 +243,7 @@ pub(crate) fn class_symbol<'db>(
                 place,
                 RequiresExplicitReExport::No,
                 ConsideredDefinitions::EndOfScope,
+                false,
             );
 
             if !place_and_quals.place.is_unbound() {
@@ -257,7 +259,8 @@ pub(crate) fn class_symbol<'db>(
                 // Otherwise, we need to check if the symbol has bindings
                 let use_def = use_def_map(db, scope);
                 let bindings = use_def.end_of_scope_bindings(place);
-                let inferred = place_from_bindings_impl(db, bindings, RequiresExplicitReExport::No);
+                let inferred =
+                    place_from_bindings_impl(db, bindings, RequiresExplicitReExport::No, false);
 
                 // TODO: we should not need to calculate inferred type second time. This is a temporary
                 // solution until the notion of Boundness and Declaredness is split. See #16036, #16264
@@ -293,6 +296,7 @@ pub(crate) fn explicit_global_symbol<'db>(
         name,
         RequiresExplicitReExport::No,
         ConsideredDefinitions::AllReachable,
+        false,
     )
 }
 
@@ -352,6 +356,7 @@ pub(crate) fn imported_symbol<'db>(
         name,
         requires_explicit_reexport,
         ConsideredDefinitions::EndOfScope,
+        true,
     )
     .or_fall_back_to(db, || {
         if name == "__getattr__" {
@@ -382,6 +387,7 @@ pub(crate) fn builtins_symbol<'db>(db: &'db dyn Db, symbol: &str) -> PlaceAndQua
                     symbol,
                     RequiresExplicitReExport::Yes,
                     ConsideredDefinitions::EndOfScope,
+                    false,
                 )
                 .or_fall_back_to(db, || {
                     // We're looking up in the builtins namespace and not the module, so we should
@@ -453,7 +459,12 @@ pub(super) fn place_from_bindings<'db>(
     db: &'db dyn Db,
     bindings_with_constraints: BindingWithConstraintsIterator<'_, 'db>,
 ) -> Place<'db> {
-    place_from_bindings_impl(db, bindings_with_constraints, RequiresExplicitReExport::No)
+    place_from_bindings_impl(
+        db,
+        bindings_with_constraints,
+        RequiresExplicitReExport::No,
+        false,
+    )
 }
 
 /// Build a declared type from a [`DeclarationsIterator`].
@@ -468,7 +479,7 @@ pub(crate) fn place_from_declarations<'db>(
     db: &'db dyn Db,
     declarations: DeclarationsIterator<'_, 'db>,
 ) -> PlaceFromDeclarationsResult<'db> {
-    place_from_declarations_impl(db, declarations, RequiresExplicitReExport::No)
+    place_from_declarations_impl(db, declarations, RequiresExplicitReExport::No, false)
 }
 
 pub(crate) type DeclaredTypeAndConflictingTypes<'db> =
@@ -598,6 +609,7 @@ impl<'db> From<Place<'db>> for PlaceAndQualifiers<'db> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn place_cycle_recover<'db>(
     _db: &'db dyn Db,
     _value: &PlaceAndQualifiers<'db>,
@@ -606,6 +618,7 @@ fn place_cycle_recover<'db>(
     _place_id: ScopedPlaceId,
     _requires_explicit_reexport: RequiresExplicitReExport,
     _considered_definitions: ConsideredDefinitions,
+    _ignore_never_constraints: bool,
 ) -> salsa::CycleRecoveryAction<PlaceAndQualifiers<'db>> {
     salsa::CycleRecoveryAction::Iterate
 }
@@ -616,6 +629,7 @@ fn place_cycle_initial<'db>(
     _place_id: ScopedPlaceId,
     _requires_explicit_reexport: RequiresExplicitReExport,
     _considered_definitions: ConsideredDefinitions,
+    _ignore_never_constraints: bool,
 ) -> PlaceAndQualifiers<'db> {
     Place::bound(Type::Never).into()
 }
@@ -627,6 +641,7 @@ fn place_by_id<'db>(
     place_id: ScopedPlaceId,
     requires_explicit_reexport: RequiresExplicitReExport,
     considered_definitions: ConsideredDefinitions,
+    ignore_never_constraints: bool,
 ) -> PlaceAndQualifiers<'db> {
     let use_def = use_def_map(db, scope);
 
@@ -638,7 +653,12 @@ fn place_by_id<'db>(
         ConsideredDefinitions::AllReachable => use_def.all_reachable_declarations(place_id),
     };
 
-    let declared = place_from_declarations_impl(db, declarations, requires_explicit_reexport);
+    let declared = place_from_declarations_impl(
+        db,
+        declarations,
+        requires_explicit_reexport,
+        ignore_never_constraints,
+    );
 
     let all_considered_bindings = || match considered_definitions {
         ConsideredDefinitions::EndOfScope => use_def.end_of_scope_bindings(place_id),
@@ -660,7 +680,12 @@ fn place_by_id<'db>(
         }) => {
             let bindings = all_considered_bindings();
             let boundness_analysis = bindings.boundness_analysis;
-            let inferred = place_from_bindings_impl(db, bindings, requires_explicit_reexport);
+            let inferred = place_from_bindings_impl(
+                db,
+                bindings,
+                requires_explicit_reexport,
+                ignore_never_constraints,
+            );
 
             let place = match inferred {
                 // Place is possibly undeclared and definitely unbound
@@ -690,7 +715,12 @@ fn place_by_id<'db>(
         }) => {
             let bindings = all_considered_bindings();
             let boundness_analysis = bindings.boundness_analysis;
-            let mut inferred = place_from_bindings_impl(db, bindings, requires_explicit_reexport);
+            let mut inferred = place_from_bindings_impl(
+                db,
+                bindings,
+                requires_explicit_reexport,
+                ignore_never_constraints,
+            );
 
             if boundness_analysis == BoundnessAnalysis::AssumeBound {
                 if let Place::Type(ty, Boundness::PossiblyUnbound) = inferred {
@@ -756,6 +786,7 @@ fn symbol_impl<'db>(
     name: &str,
     requires_explicit_reexport: RequiresExplicitReExport,
     considered_definitions: ConsideredDefinitions,
+    ignore_never_constraints: bool,
 ) -> PlaceAndQualifiers<'db> {
     let _span = tracing::trace_span!("symbol", ?name).entered();
 
@@ -782,6 +813,7 @@ fn symbol_impl<'db>(
                 symbol,
                 requires_explicit_reexport,
                 considered_definitions,
+                ignore_never_constraints,
             )
         })
         .unwrap_or_default()
@@ -806,6 +838,7 @@ fn place_impl<'db>(
                 place,
                 requires_explicit_reexport,
                 considered_definitions,
+                false,
             )
         })
         .unwrap_or_default()
@@ -820,6 +853,7 @@ fn place_from_bindings_impl<'db>(
     db: &'db dyn Db,
     bindings_with_constraints: BindingWithConstraintsIterator<'_, 'db>,
     requires_explicit_reexport: RequiresExplicitReExport,
+    ignore_never_constraints: bool,
 ) -> Place<'db> {
     let predicates = bindings_with_constraints.predicates;
     let reachability_constraints = bindings_with_constraints.reachability_constraints;
@@ -845,7 +879,12 @@ fn place_from_bindings_impl<'db>(
     // expressions, which is extra work and can lead to cycles.
     let unbound_visibility = || {
         unbound_reachability_constraint.map(|reachability_constraint| {
-            reachability_constraints.evaluate(db, predicates, reachability_constraint)
+            reachability_constraints.evaluate(
+                db,
+                predicates,
+                reachability_constraint,
+                ignore_never_constraints,
+            )
         })
     };
 
@@ -861,9 +900,13 @@ fn place_from_bindings_impl<'db>(
                     return None;
                 }
                 DefinitionState::Deleted => {
-                    deleted_reachability = deleted_reachability.or(
-                        reachability_constraints.evaluate(db, predicates, reachability_constraint)
-                    );
+                    deleted_reachability = deleted_reachability.or(reachability_constraints
+                        .evaluate(
+                            db,
+                            predicates,
+                            reachability_constraint,
+                            ignore_never_constraints,
+                        ));
                     return None;
                 }
             };
@@ -872,8 +915,12 @@ fn place_from_bindings_impl<'db>(
                 return None;
             }
 
-            let static_reachability =
-                reachability_constraints.evaluate(db, predicates, reachability_constraint);
+            let static_reachability = reachability_constraints.evaluate(
+                db,
+                predicates,
+                reachability_constraint,
+                ignore_never_constraints,
+            );
 
             if static_reachability.is_always_false() {
                 // If the static reachability evaluates to false, the binding is either not reachable
@@ -1093,6 +1140,7 @@ fn place_from_declarations_impl<'db>(
     db: &'db dyn Db,
     declarations: DeclarationsIterator<'_, 'db>,
     requires_explicit_reexport: RequiresExplicitReExport,
+    ignore_never_constraints: bool,
 ) -> PlaceFromDeclarationsResult<'db> {
     let predicates = declarations.predicates;
     let reachability_constraints = declarations.reachability_constraints;
@@ -1107,9 +1155,12 @@ fn place_from_declarations_impl<'db>(
         Some(DeclarationWithConstraint {
             declaration,
             reachability_constraint,
-        }) if declaration.is_undefined_or(is_non_exported) => {
-            reachability_constraints.evaluate(db, predicates, *reachability_constraint)
-        }
+        }) if declaration.is_undefined_or(is_non_exported) => reachability_constraints.evaluate(
+            db,
+            predicates,
+            *reachability_constraint,
+            ignore_never_constraints,
+        ),
         _ => Truthiness::AlwaysFalse,
     };
 
@@ -1128,8 +1179,12 @@ fn place_from_declarations_impl<'db>(
                 return None;
             }
 
-            let static_reachability =
-                reachability_constraints.evaluate(db, predicates, reachability_constraint);
+            let static_reachability = reachability_constraints.evaluate(
+                db,
+                predicates,
+                reachability_constraint,
+                ignore_never_constraints,
+            );
 
             if static_reachability.is_always_false() {
                 None
@@ -1370,7 +1425,7 @@ impl RequiresExplicitReExport {
 /// ```py
 /// def _():
 ///     x = 1
-///     
+///
 ///     x = 2
 ///
 ///     if flag():
